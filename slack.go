@@ -38,17 +38,17 @@ func (s *Slack) handle(cmd string, args []string) (interface{}, error) {
 	case "api":
 		err = fmt.Errorf("%s has not been supported", tp)
 	case "auth":
-		err = fmt.Errorf("%s has not been supported", tp)
+		v, err = s.s.AuthTest()
 	case "channels":
-		err = fmt.Errorf("%s has not been supported", tp)
+		v, err = s.handleChannels(action, params)
 	case "chat":
 		v, err = s.handleChat(action, params)
 	case "emoji":
 		v, err = s.handleEmoji(action, params)
 	case "files":
-		err = fmt.Errorf("%s has not been supported", tp)
+		v, err = s.handleFiles(action, params)
 	case "groups":
-		err = fmt.Errorf("%s has not been supported", tp)
+		v, err = s.handleGroups(action, params)
 	case "im":
 		v, err = s.handleIM(action, params)
 	case "oauth":
@@ -62,18 +62,23 @@ func (s *Slack) handle(cmd string, args []string) (interface{}, error) {
 	case "users":
 		v, err = s.handleUsers(action, params)
 	default:
-		return nil, fmt.Errorf("invalid api type %s", cmds[0])
+		return nil, fmt.Errorf("unsupported api type %s", cmds[0])
 	}
 
 	return v, err
 }
 
-func getIntParam(params map[string]string, key string, defValue int) (int, error) {
+func getIntParam(params map[string]string, key string, defValue int) int {
 	v, ok := params[key]
 	if !ok {
-		return defValue, nil
+		return defValue
 	} else {
-		return strconv.Atoi(v)
+		vv, err := strconv.Atoi(v)
+		if err != nil {
+			return defValue
+		} else {
+			return vv
+		}
 	}
 }
 
@@ -97,6 +102,262 @@ func getBoolParam(params map[string]string, key string, defValue bool) bool {
 	}
 }
 
+func (s *Slack) handleChannels(action string, params map[string]string) (interface{}, error) {
+	var v interface{}
+	var err error
+
+	switch action {
+	case "archive":
+		err = s.s.ArchiveChannel(params["channel"])
+	case "create":
+		ch, err := s.s.CreateChannel(params["name"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"channel": ch,
+		}
+	case "history":
+		historyParam := slack.HistoryParameters{}
+		historyParam.Latest = getStringParam(params, "latest", slack.DEFAULT_HISTORY_LATEST)
+		historyParam.Oldest = getStringParam(params, "latest", slack.DEFAULT_HISTORY_OLDEST)
+		historyParam.Count = getIntParam(params, "count", slack.DEFAULT_HISTORY_COUNT)
+		v, err = s.s.GetChannelHistory(params["channel"], historyParam)
+	case "info":
+		ch, err := s.s.GetChannelInfo(params["channel"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"channel": ch,
+		}
+	case "invite":
+		ch, err := s.s.InviteUserToChannel(params["channel"], params["user"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"channel": ch,
+		}
+	case "join":
+		ch, err := s.s.JoinChannel(params["name"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"channel": ch,
+		}
+	case "kick":
+		err = s.s.KickUserFromChannel(params["channel"], params["user"])
+	case "leave":
+		_, err = s.s.LeaveChannel(params["channel"])
+	case "list":
+		exclude := getIntParam(params, "exclude_archived", 0)
+		chs, err := s.s.GetChannels(exclude == 1)
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"channels": chs,
+		}
+	case "mark":
+		err = s.s.SetChannelReadMark(params["channel"], params["ts"])
+	case "rename":
+		ch, err := s.s.RenameChannel(params["channel"], params["name"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"channel": ch,
+		}
+	case "setpurpose":
+		purpose, err := s.s.SetChannelPurpose(params["channel"], params["purpose"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"purpose": purpose,
+		}
+	case "settopic":
+		topic, err := s.s.SetChannelTopic(params["channel"], params["topic"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"topic": topic,
+		}
+	case "unarchive":
+		err = s.s.UnarchiveChannel(params["channel"])
+	default:
+		return nil, fmt.Errorf("invalid files action %s", action)
+	}
+
+	return v, err
+}
+
+func (s *Slack) handleGroups(action string, params map[string]string) (interface{}, error) {
+	var v interface{}
+	var err error
+
+	switch action {
+	case "archive":
+		err = s.s.ArchiveGroup(params["channel"])
+	case "close":
+		noop, closed, err := s.s.CloseGroup(params["channel"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]bool{
+			"no_op":          noop,
+			"already_closed": closed,
+		}
+	case "create":
+		group, err := s.s.CreateGroup(params["name"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"group": group,
+		}
+	case "createchild":
+		group, err := s.s.CreateChildGroup(params["channel"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"group": group,
+		}
+	case "history":
+		historyParam := slack.HistoryParameters{}
+		historyParam.Latest = getStringParam(params, "latest", slack.DEFAULT_HISTORY_LATEST)
+		historyParam.Oldest = getStringParam(params, "latest", slack.DEFAULT_HISTORY_OLDEST)
+		historyParam.Count = getIntParam(params, "count", slack.DEFAULT_HISTORY_COUNT)
+		v, err = s.s.GetGroupHistory(params["channel"], historyParam)
+	case "invite":
+		group, in, err := s.s.InviteUserToGroup(params["channel"], params["user"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"already_in_group": in,
+			"group":            group,
+		}
+	case "kick":
+		err = s.s.KickUserFromGroup(params["channel"], params["user"])
+	case "leave":
+		err = s.s.LeaveGroup(params["channel"])
+	case "list":
+		exclude := getIntParam(params, "exclude_archived", 0)
+		groups, err := s.s.GetGroups(exclude == 1)
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"groups": groups,
+		}
+	case "open":
+		noop, opened, err := s.s.OpenGroup(params["channel"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]bool{
+			"no_op":        noop,
+			"already_open": opened,
+		}
+	case "mark":
+		err = s.s.SetGroupReadMark(params["channel"], params["ts"])
+	case "rename":
+		group, err := s.s.RenameGroup(params["channel"], params["name"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"group": group,
+		}
+	case "setpurpose":
+		purpose, err := s.s.SetGroupPurpose(params["channel"], params["purpose"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"purpose": purpose,
+		}
+	case "settopic":
+		topic, err := s.s.SetGroupTopic(params["channel"], params["topic"])
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"topic": topic,
+		}
+	case "unarchive":
+		err = s.s.UnarchiveGroup(params["channel"])
+	default:
+		return nil, fmt.Errorf("invalid groups action %s", action)
+	}
+
+	return v, err
+}
+
+func (s *Slack) handleFiles(action string, params map[string]string) (interface{}, error) {
+	var v interface{}
+	var err error
+
+	switch action {
+	case "info":
+		count := getIntParam(params, "count", slack.DEFAULT_FILES_COUNT)
+		page := getIntParam(params, "page", slack.DEFAULT_FILES_PAGE)
+		files, comments, pages, err := s.s.GetFileInfo(params["file"], count, page)
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"file":     files,
+			"comments": comments,
+			"paging":   pages,
+		}
+	case "list":
+		listParam := slack.GetFilesParameters{}
+		listParam.UserId = getStringParam(params, "user", slack.DEFAULT_FILES_USERID)
+		listParam.TimestampFrom = slack.JSONTime(getIntParam(params, "ts_from", slack.DEFAULT_FILES_TS_FROM))
+		listParam.TimestampTo = slack.JSONTime(getIntParam(params, "ts_to", slack.DEFAULT_FILES_TS_TO))
+		listParam.Types = getStringParam(params, "types", slack.DEFAULT_FILES_TYPES)
+		listParam.Count = getIntParam(params, "count", slack.DEFAULT_FILES_COUNT)
+		listParam.Page = getIntParam(params, "page", slack.DEFAULT_FILES_PAGE)
+
+		files, pages, err := s.s.GetFiles(listParam)
+		if err != nil {
+			return nil, err
+		}
+
+		v = map[string]interface{}{
+			"files":  files,
+			"paging": pages,
+		}
+
+	case "upload":
+		uploadParams := slack.FileUploadParameters{}
+		uploadParams.File = getStringParam(params, "file", "")
+		uploadParams.Content = getStringParam(params, "content", "")
+		uploadParams.Filetype = getStringParam(params, "filetype", "")
+		uploadParams.Filename = getStringParam(params, "filename", "")
+		uploadParams.Title = getStringParam(params, "title", "")
+		uploadParams.InitialComment = getStringParam(params, "initial_comment", "")
+		channels := getStringParam(params, "channels", "")
+		uploadParams.Channels = strings.Split(channels, ",")
+		file, err := s.s.UploadFile(uploadParams)
+		if err != nil {
+			return nil, err
+		}
+		v = map[string]interface{}{
+			"file": file,
+		}
+	default:
+		return nil, fmt.Errorf("invalid files action %s", action)
+	}
+	return v, err
+}
+
 func (s *Slack) handleChat(action string, params map[string]string) (interface{}, error) {
 	var v interface{}
 	var err error
@@ -115,10 +376,7 @@ func (s *Slack) handleChat(action string, params map[string]string) (interface{}
 		postParam := slack.PostMessageParameters{}
 		postParam.Username = getStringParam(params, "username", slack.DEFAULT_MESSAGE_USERNAME)
 		postParam.Parse = getStringParam(params, "parse", slack.DEFAULT_MESSAGE_PARSE)
-		postParam.LinkNames, err = getIntParam(params, "link_names", slack.DEFAULT_MESSAGE_LINK_NAMES)
-		if err != nil {
-			return nil, err
-		}
+		postParam.LinkNames = getIntParam(params, "link_names", slack.DEFAULT_MESSAGE_LINK_NAMES)
 
 		postParam.UnfurlLinks = getBoolParam(params, "unfurl_links", slack.DEFAULT_MESSAGE_UNFURL_LINKS)
 		postParam.UnfurlMedia = getBoolParam(params, "unfurl_media", slack.DEFAULT_MESSAGE_UNFURL_MEDIA)
@@ -196,9 +454,7 @@ func (s *Slack) handleIM(action string, params map[string]string) (interface{}, 
 
 		historyParms.Oldest = getStringParam(params, "oldest", slack.DEFAULT_HISTORY_OLDEST)
 
-		if historyParms.Count, err = getIntParam(params, "count", slack.DEFAULT_HISTORY_COUNT); err != nil {
-			return nil, err
-		}
+		historyParms.Count = getIntParam(params, "count", slack.DEFAULT_HISTORY_COUNT)
 
 		v, err = s.s.GetIMHistory(params["channel"], historyParms)
 
@@ -241,19 +497,12 @@ func (s *Slack) handleSearch(action string, params map[string]string) (interface
 	searchParams := slack.SearchParameters{}
 	searchParams.Sort = getStringParam(params, "sort", slack.DEFAULT_SEARCH_SORT)
 	searchParams.SortDirection = getStringParam(params, "sort_dir", slack.DEFAULT_SEARCH_SORT_DIR)
-	if highlight, err := getIntParam(params, "highlight", 0); err != nil {
-		return nil, err
-	} else {
-		searchParams.Highlight = (highlight == 1)
-	}
+	highlight := getIntParam(params, "highlight", 0)
+	searchParams.Highlight = (highlight == 1)
 
-	if searchParams.Count, err = getIntParam(params, "count", slack.DEFAULT_SEARCH_COUNT); err != nil {
-		return nil, err
-	}
+	searchParams.Count = getIntParam(params, "count", slack.DEFAULT_SEARCH_COUNT)
 
-	if searchParams.Page, err = getIntParam(params, "page", slack.DEFAULT_SEARCH_PAGE); err != nil {
-		return nil, err
-	}
+	searchParams.Page = getIntParam(params, "page", slack.DEFAULT_SEARCH_PAGE)
 
 	query := params["query"]
 
@@ -306,12 +555,8 @@ func (s *Slack) handleStars(action string, params map[string]string) (interface{
 		starsParams := slack.StarsParameters{}
 		starsParams.User = params["user"]
 
-		if starsParams.Count, err = getIntParam(params, "count", slack.DEFAULT_STARS_COUNT); err != nil {
-			return nil, err
-		}
-		if starsParams.Page, err = getIntParam(params, "page", slack.DEFAULT_STARS_PAGE); err != nil {
-			return nil, err
-		}
+		starsParams.Count = getIntParam(params, "count", slack.DEFAULT_STARS_COUNT)
+		starsParams.Page = getIntParam(params, "page", slack.DEFAULT_STARS_PAGE)
 
 		items, paging, err := s.s.GetStarred(starsParams)
 		if err != nil {

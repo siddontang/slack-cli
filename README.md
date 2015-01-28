@@ -9,6 +9,7 @@ slack>users.info user=U023BECGF
 slack>stars.list user=U023BECGF page=1 count=100
 ```
 
-## Status
+## todo
 
-Unfinished :-)
++ add description for commands
++ more test
