@@ -20,4 +20,8 @@ slack>stars.list user=U023BECGF page=1 count=100
 
 ## Limitation
 
-Use Redis linenoise lib, so Windows may be not supported. :-)
+Use linenoise lib, so Windows may be not supported. :-)
+
+## Thanks
+
+[https://github.com/nlopes/slack](https://github.com/nlopes/slack)
