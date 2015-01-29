@@ -34,6 +34,7 @@ var helpCommands = [][]string{
 	[]string{"groups.setTopic", "channel topic", ""},
 	[]string{"groups.unarchive", "channel", ""},
 
+	[]string{"files.delete", "file", ""},
 	[]string{"files.info", "file [count] [page] [count]", ""},
 	[]string{"files.list", "[user] [ts_from] [ts_to] [types] [count] [page]", ""},
 	[]string{"files.upload", "[file] [content] [filetype] [filename] [title] [initial_comment] [channels]", ""},

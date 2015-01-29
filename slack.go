@@ -304,6 +304,8 @@ func (s *Slack) handleFiles(action string, params map[string]string) (interface{
 	var err error
 
 	switch action {
+	case "delete":
+		err = s.s.DeleteFile(params["file"])
 	case "info":
 		count := getIntParam(params, "count", slack.DEFAULT_FILES_COUNT)
 		page := getIntParam(params, "page", slack.DEFAULT_FILES_PAGE)
